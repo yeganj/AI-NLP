@@ -95,7 +95,7 @@ def generate_embeddings(corpus, dictionary):
         for j in range(0, len(words)):
             words_index[j] = dictionary.index(words[j])
         embeddings.append(words_index)
-    return np.array(embeddings)
+    return np.array(embeddings), max_len
 
 def create_data(embeddings):
     i = len(embeddings)
@@ -133,7 +133,8 @@ def create_data(embeddings):
 def get_x_y(data):
     return data[:,:-1], data[:,-1]
 
-def generate_text(seed_text, next_words, model, max_sequence_len, tokenizer, clf):
+def generate_text(seed_text, next_words, model, max_sequence_len, tokenizer, clf, dictionary, max_len):
+
     for _ in range(next_words):
         token_list = tokenizer.texts_to_sequences([seed_text])[0]
         token_list = pad_sequences([token_list], maxlen=max_sequence_len-1, padding='pre')
@@ -145,8 +146,43 @@ def generate_text(seed_text, next_words, model, max_sequence_len, tokenizer, clf
                 output_word = word
                 break
         seed_text += " "+output_word
+    return seed_text.title()
+
+def generate_text_predictor(seed_text, next_words, model, max_sequence_len, tokenizer, clf, dictionary, max_len):
+
+    predicted_seed_text = ''
+    is_complete = False
+    i = 0
+    while is_complete == False and i < max_len:
+        token_list = tokenizer.texts_to_sequences([seed_text])[0]
+        token_list = pad_sequences([token_list], maxlen=max_sequence_len-1, padding='pre')
+        predicted = model.predict_classes(token_list, verbose=0)
+        
+        output_word = ""
+        for word,index in tokenizer.word_index.items():
+            if index == predicted:
+                output_word = word
+                break
+        seed_text += " "+output_word
+        is_complete = test_sequence(seed_text, dictionary, clf, max_len)
+        i += 1
         #print(seed_text)
     return seed_text.title()
+
+def test_sequence(seed, dictionary, clf, max_len):
+
+    seed_text = seed.split()
+    seed_array = [-1] * max_len
+    
+    for i in range(0, len(seed_text)):
+        seed_array[i] = dictionary.index(seed_text[i])
+
+    result = clf.predict([seed_array])
+    
+    if int(result[0]) == 1:
+        return True
+    return False
+
 
 def main():
 
@@ -172,7 +208,7 @@ def main():
     #print(dictionary[:10])
 
     print("creating embeddings")
-    embeddings = generate_embeddings(corpus, dictionary)
+    embeddings, max_len = generate_embeddings(corpus, dictionary)
 
     #print(embeddings[:10])
    
@@ -184,14 +220,12 @@ def main():
 
     print("creating classifier")
     clf = LogisticRegression(random_state=0, solver='lbfgs', multi_class='multinomial').fit(X_train, y_train)
-    print(clf.predict(X_test[:2, :]))
-    print(clf.score(X_train, y_train))
-    print(clf.score(X_test, y_test))
+    print("Classifier score on training data: {}".format(clf.score(X_train, y_train)))
+    print("Classifier score on test data: {}".format(clf.score(X_test, y_test)))
+
 
     print("get sequence of tokens")
     inp_sequences, total_words = get_sequence_of_tokens(corpus, tokenizer)
-    print(inp_sequences[:10])
-    print (total_words)
 
     print("generate padded sequences")
     predictors, label, max_sequence_len = generate_padded_sequences(inp_sequences, total_words)
@@ -217,18 +251,50 @@ def main():
     model = model_from_json(loaded_model_json)
     # load weights into new model
     model.load_weights("model.h5")
+ 
     print("Loaded model from disk")
 
-    print (generate_text("united states", 5, model, max_sequence_len, tokenizer, clf))
-    print (generate_text("president trump", 4, model, max_sequence_len, tokenizer, clf))
-    print (generate_text("donald trump", 4, model, max_sequence_len, tokenizer, clf))
-    print (generate_text("india and china", 4, model, max_sequence_len, tokenizer, clf))
-    print (generate_text("new york", 4, model, max_sequence_len, tokenizer, clf))
-    print (generate_text("science and technology", 20, model, max_sequence_len, tokenizer, clf))
-    print (generate_text("reindeer", 10, model, max_sequence_len, tokenizer, clf))
-    print (generate_text("japan", 10, model, max_sequence_len, tokenizer, clf))
-    print (generate_text("north korea", 5, model, max_sequence_len, tokenizer, clf))
-    print (generate_text("immigration", 10, model, max_sequence_len, tokenizer, clf))
+
+    print("\n\nResults:")
+
+    print(generate_text_predictor("united states", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("united states", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+
+    print(generate_text_predictor("india and china", 4, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("india and china", 4, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+
+    print(generate_text_predictor("new york", 4, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("new york", 4, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    
+    print(generate_text_predictor("donald trump", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("donald trump", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+
+
+    print(generate_text_predictor("science and technology", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("science and technology", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+
+    print(generate_text_predictor("immigration", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("immigration", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+
+    print(generate_text_predictor("north korea", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("north korea", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+
+
+    print(generate_text_predictor("japan", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("japan", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+
+    print(generate_text_predictor("barack obama", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("barack obama", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+
+
+    print(generate_text_predictor("hillary clinton", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("hillary clinton", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+
+    print(generate_text_predictor("canada", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("canada", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+
+    print(generate_text_predictor("nafta", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
+    print(generate_text("nafta", 5, model, max_sequence_len, tokenizer, clf, dictionary, max_len))
 
 if __name__=="__main__":
     main()

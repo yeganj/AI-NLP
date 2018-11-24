@@ -36,7 +36,7 @@ def clean_text(txt):
     return txt 
 
 corpus = [clean_text(x) for x in all_headlines]
-corpus[:10]
+#corpus[:10]
 
 
 tokenizer = Tokenizer()
@@ -63,7 +63,7 @@ def generate_padded_sequences(input_sequences):
     input_sequences = np.array(pad_sequences(input_sequences, maxlen=max_sequence_len, padding='pre'))
 
     predictors, label = input_sequences[:,:-1],input_sequences[:,-1]
-    label = ku.to_categorical(label, num_classes=total_words)
+    label = ku.to_categorical(label, num_classes=total_words) # For use with categorical_crossentropy loss function
     return predictors, label, max_sequence_len
 
 predictors, label, max_sequence_len = generate_padded_sequences(inp_sequences)
@@ -91,6 +91,20 @@ model.summary()
 # train model
 model.fit(predictors, label, epochs=100, verbose=2)
 
+def get_pretrained_embedding():
+    embeddings_index = dict()
+    f = open("glove_dir/glove.6B.100d.txt")
+    for line in f:
+        values = line.split()
+        word = values[0]
+        coefs = np.asarray(values[1:], dtype='float32')
+        embeddings_index[word] = coefs
+    f.close()
+    print('Loaded %s word vectors.' % len(embeddings_index))
+    return embeddings_index
+
+embeddings_index = get_pretrained_embedding()
+
 def generate_text(seed_text, next_words, model, max_sequence_len):
     for _ in range(next_words):
         token_list = tokenizer.texts_to_sequences([seed_text])[0]
@@ -106,7 +120,7 @@ def generate_text(seed_text, next_words, model, max_sequence_len):
     return seed_text.title()
 
 print (generate_text("united states", 5, model, max_sequence_len))
-print (generate_text("preident trump", 4, model, max_sequence_len))
+print (generate_text("president trump", 4, model, max_sequence_len))
 print (generate_text("donald trump", 4, model, max_sequence_len))
 print (generate_text("india and china", 4, model, max_sequence_len))
 print (generate_text("new york", 4, model, max_sequence_len))

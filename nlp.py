@@ -1,6 +1,6 @@
 #module for building LSTM 
 from keras.preprocessing.sequence import pad_sequences
-from keras.layers import Embedding, LSTM, Dense
+from keras.layers import Embedding, LSTM, Dense, Flatten
 from keras.preprocessing.text import Tokenizer
 from keras.callbacks import EarlyStopping
 from keras.models import Sequential
@@ -38,14 +38,12 @@ def clean_text(txt):
 corpus = [clean_text(x) for x in all_headlines]
 #corpus[:10]
 
-
+## tokenization
 tokenizer = Tokenizer()
+tokenizer.fit_on_texts(corpus)
+total_words = len(tokenizer.word_index) + 1
 
 def get_sequence_of_tokens(corpus):
-    ## tokenization
-    tokenizer.fit_on_texts(corpus)
-    total_words = len(tokenizer.word_index) + 1
-
     ## convert data to sequence of tokens 
     input_sequences = []
     for line in corpus:
@@ -53,9 +51,9 @@ def get_sequence_of_tokens(corpus):
         for i in range(1, len(token_list)):
             n_gram_sequence = token_list[:i+1]
             input_sequences.append(n_gram_sequence)
-    return input_sequences, total_words
+    return input_sequences
 
-inp_sequences, total_words = get_sequence_of_tokens(corpus)
+inp_sequences = get_sequence_of_tokens(corpus)
 inp_sequences[:10]
 
 def generate_padded_sequences(input_sequences):
@@ -82,12 +80,25 @@ def get_pretrained_embedding():
 
 embeddings_index = get_pretrained_embedding()
 
-def create_model(max_sequence_len, total_words):
+def create_embedding_matrix(embeddings_index):
+    embedding_matrix = np.zeros((total_words, 100))
+    for word, i in tokenizer.word_index.items():
+        embedding_vector = embeddings_index.get(word)
+        if embedding_vector is not None:
+            embedding_matrix[i] = embedding_vector
+    return embedding_matrix
+
+embedding_matrix = create_embedding_matrix(embeddings_index)
+print(embedding_matrix)
+
+def create_model(max_sequence_len, total_words, embedding_matrix):
     input_len = max_sequence_len - 1
     model = Sequential()
+    e = Embedding(total_words, 100, weights=[embedding_matrix], input_length=input_len)
 
     # Add Input Embedding Layer
-    model.add(Embedding(total_words, 10, input_length=input_len))
+    #model.add(Embedding(total_words, 10, input_length=input_len))
+    model.add(e)
 
     # Add Hidden Layer 1 - LSTM Layer
     model.add(LSTM(100))
@@ -99,7 +110,7 @@ def create_model(max_sequence_len, total_words):
 
     return model
 
-model = create_model(max_sequence_len, total_words)
+model = create_model(max_sequence_len, total_words, embedding_matrix)
 model.summary()
 
 # train model
